@@ -2,28 +2,43 @@ import 'package:get/get.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter/widgets.dart';
 
-class WeatherController extends GetxController {
-  // ⚠️ अपनी वास्तविक API Key से बदलें
-  final String apiKey = '3d9b81063814692edb20759729cb46ad';
+class WeatherController extends GetxController with WidgetsBindingObserver {
+  // ⚠️ Replace with your actual OpenWeatherMap API Key
+  final String apiKey = '20388c5b094a033e5fe0c2adb09ea8cd';
   final String baseUrl = 'https://api.openweathermap.org/data/2.5/weather';
 
   // Observable Data
   final locationName = 'Loading...'.obs;
   final temperature = '--°C'.obs;
-  final weatherIcon = '🌤️'.obs; // Default icon
+  final weatherIcon = '🌤️'.obs;
   final isLoading = true.obs;
 
   @override
   void onInit() {
     super.onInit();
+    WidgetsBinding.instance.addObserver(this);
     fetchWeather();
+  }
+
+  @override
+  void onClose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.onClose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      fetchWeather();
+    }
   }
 
   Future<void> fetchWeather() async {
     isLoading.value = true;
     try {
-      // 1. Get Location (Latitude and Longitude)
+      // 1. Get Location
       Position position = await _determinePosition();
 
       final lat = position.latitude;
@@ -36,18 +51,25 @@ class WeatherController extends GetxController {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
-        // 3. Update Observable Variables
-        temperature.value = '${data['main']['temp'].round()}°C';
-        locationName.value = data['name'] ?? 'Unknown Location';
-        weatherIcon.value = _getWeatherIcon(data['weather'][0]['icon']);
+        // Update Observables
+        locationName.value = data['name'] ?? "Unknown";
+        temperature.value = "${data['main']['temp'].round()}°C";
 
+        // Get icon code from API and convert to emoji
+        String iconCode = data['weather'][0]['icon'];
+        weatherIcon.value = _getWeatherIcon(iconCode);
       } else {
-        locationName.value = 'API Error';
-        throw Exception('Failed to load weather data');
+        locationName.value = "Error";
+        print("API Error: ${response.statusCode} - ${response.body}");
       }
     } catch (e) {
-      locationName.value = 'Location Off';
-      temperature.value = 'N/A';
+      if (e.toString().contains('Location services are disabled')) {
+        locationName.value = "Location Off";
+      } else if (e.toString().contains('denied')) {
+        locationName.value = "Permission Denied";
+      } else {
+        locationName.value = "Offline";
+      }
       weatherIcon.value = '⚠️';
       print("Weather fetch error: $e");
     } finally {
@@ -80,19 +102,38 @@ class WeatherController extends GetxController {
     return await Geolocator.getCurrentPosition();
   }
 
+  // 🖱️ Handle Tap to fix location issues or refresh
+  Future<void> handleLocationTap() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      await Geolocator.openLocationSettings();
+      // Note: We don't await the user coming back, but next fetch will try again
+    } else {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      } else if (permission == LocationPermission.deniedForever) {
+        await Geolocator.openAppSettings();
+      }
+    }
+    // Try to refresh even if we just opened settings (user might toggle it quickly)
+    fetchWeather();
+  }
+
   // Helper to convert OpenWeatherMap icon code to Emoji
   String _getWeatherIcon(String iconCode) {
     switch (iconCode) {
-      case '01d': return '☀️'; // clear sky day
-      case '01n': return '🌙'; // clear sky night
+      case '01d': return '☀️';
+      case '01n': return '🌙';
       case '02d':
-      case '03d': return '🌤️'; // few clouds day
-      case '04d': return '☁️'; // broken clouds
-      case '09d': return '🌧️'; // shower rain
-      case '10d': return '☔'; // rain day
-      case '13d': return '❄️'; // snow
-      case '50d': return '🌫️'; // mist
-      default: return '❓';
+      case '03d': return '🌤️';
+      case '04d': return '☁️';
+      case '09d':
+      case '10d': return '🌧️';
+      case '11d': return '⛈️';
+      case '13d': return '❄️';
+      case '50d': return '🌫️';
+      default: return '🌤️';
     }
   }
 }

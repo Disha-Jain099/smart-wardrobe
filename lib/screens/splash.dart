@@ -4,7 +4,7 @@ import 'package:get_storage/get_storage.dart';
 import 'onboarding.dart'; // OnboardingScreen के लिए
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:smart_wardrobe_new/main.dart'; // Supabase client access के लिए
+import 'package:smart_wardrobe_new/main.dart';
 
 // --- App Colors ---
 const Color _kGradientStart = Color(0xFFD8B4FE);
@@ -92,7 +92,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _checkUserStatusAndNavigate();
   }
 
-  // 🎯 SUPABASE AUTH STATUS CHECK LOGIC (UPDATED)
+  // SUPABASE AUTH STATUS CHECK LOGIC (UPDATED)
   // void _checkUserStatusAndNavigate() async {
   //   if (!mounted) return;
   //
@@ -121,7 +121,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   //   final session = supabase.auth.currentSession;
   //   bool isAuthenticated = session != null;
   //
-  //   bool isFirstTime = false; // 🎯 (GetStorage check here)
+  //   bool isFirstTime = false; //  (GetStorage check here)
   //
   //
   //   if (!mounted) return;
@@ -136,39 +136,73 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   //   }
   // }
 
-  // 🎯 SUPABASE AUTH STATUS CHECK LOGIC (UPDATED WITH GET_STORAGE)
+  //  SUPABASE AUTH STATUS CHECK LOGIC (UPDATED WITH GET_STORAGE)
+  // void _checkUserStatusAndNavigate() async {
+  //   if (!mounted) return;
+  //
+  //   // 1. Deep link check (keep your existing code)
+  //   final uri = Uri.parse(Uri.base.toString());
+  //   if (uri.pathSegments.contains('reset-callback')) {
+  //     Get.offAllNamed('/password-reset');
+  //     return;
+  //   }
+  //
+  //   // 2. Wait for animation
+  //   await Future.delayed(const Duration(seconds: 3));
+  //
+  //   // --- GET_STORAGE LOGIC ---
+  //   final box = GetStorage();
+  //   // Check if 'onboarding_complete' exists. If null, it means it's the first time.
+  //   bool onboardingComplete = box.read('onboarding_complete') ?? false;
+  //
+  //   final session = supabase.auth.currentSession;
+  //   bool isAuthenticated = session != null;
+  //
+  //   if (!mounted) return;
+  //
+  //   // --- NAVIGATION LOGIC ---
+  //   if (isAuthenticated) {
+  //     Get.offNamed('/home');
+  //   } else if (!onboardingComplete) {
+  //     // If onboarding is NOT complete, show onboarding
+  //     Get.offNamed('/onboarding');
+  //     //Get.off(() => const OnboardingScreen());
+  //   } else {
+  //     // If onboarding IS complete but not logged in, show login
+  //     Get.offNamed('/login');
+  //   }
+  // }
+
   void _checkUserStatusAndNavigate() async {
     if (!mounted) return;
 
-    // 1. Deep link check (keep your existing code)
+    // 1. Deep link check for Password Reset
     final uri = Uri.parse(Uri.base.toString());
     if (uri.pathSegments.contains('reset-callback')) {
+      // Use offAllNamed to wipe the splash/login history
       Get.offAllNamed('/password-reset');
       return;
     }
 
-    // 2. Wait for animation
+    // 2. Wait for your 3-second animation
     await Future.delayed(const Duration(seconds: 3));
 
-    // --- GET_STORAGE LOGIC ---
     final box = GetStorage();
-    // Check if 'onboarding_complete' exists. If null, it means it's the first time.
     bool onboardingComplete = box.read('onboarding_complete') ?? false;
 
-    final session = supabase.auth.currentSession;
+    // This checks if a session was left over from the last run
+    final session = Supabase.instance.client.auth.currentSession;
     bool isAuthenticated = session != null;
 
     if (!mounted) return;
 
-    // --- NAVIGATION LOGIC ---
+    // 3. Final Navigation
     if (isAuthenticated) {
-      Get.offNamed('/home');
+      Get.offAllNamed('/home'); // Go home if token exists
     } else if (!onboardingComplete) {
-      // If onboarding is NOT complete, show onboarding
-      Get.offNamed('/onboarding');
+      Get.offAllNamed('/onboarding');
     } else {
-      // If onboarding IS complete but not logged in, show login
-      Get.offNamed('/login');
+      Get.offAllNamed('/login'); // Go to login if token was deleted by signOut()
     }
   }
 
@@ -198,7 +232,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             Positioned(bottom: 100, left: 30, child: FaIcon(FontAwesomeIcons.shirt, size: 40, color: Colors.blue.withOpacity(0.5))),
             Positioned(bottom: 80, right: 30, child: FaIcon(FontAwesomeIcons.bagShopping, size: 40, color: Colors.grey.withOpacity(0.5))),
 
-            // 🎯 Center Content (Animated)
+            //  Center Content (Animated)
             Center(
               // 1. SlideTransition
               child: SlideTransition(

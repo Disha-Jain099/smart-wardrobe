@@ -4,8 +4,11 @@ import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart';
 import 'package:smart_wardrobe_new/controllers/user_controller.dart';
 import 'package:smart_wardrobe_new/controllers/weather_controller.dart';
+import 'package:smart_wardrobe_new/controllers/wardrobe_controller.dart';
 import 'package:smart_wardrobe_new/screens/HomeScreen.dart';
 import 'package:smart_wardrobe_new/screens/OutfitSuggestion.dart';
+import 'package:smart_wardrobe_new/screens/ResetPasswordScreen.dart';
+import 'package:smart_wardrobe_new/screens/body_scan.dart';
 import 'package:smart_wardrobe_new/screens/my_wardrobe.dart';
 import 'package:smart_wardrobe_new/screens/profile.dart' hide LoginScreen;
 import 'package:flutter/material.dart';
@@ -25,6 +28,7 @@ final supabase = Supabase.instance.client;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await GetStorage.init();
 
   await Supabase.initialize(
     url: 'https://srzyhowfebtkueubwyqr.supabase.co',
@@ -33,17 +37,22 @@ Future<void> main() async {
 
   await GetStorage.init();
 
+  final session = Supabase.instance.client.auth.currentSession;
+
   Get.put(ThemeController());
   Get.put(UserController());
   Get.put(OutfitController());
   Get.put(WeatherController());
+  Get.put(WardrobeController());
 
   runApp(const MyApp());
 
-  // Supabase Recovery Listener (सिर्फ़ डेटा अपडेट)
   supabase.auth.onAuthStateChange.listen((data) {
-    if (data.event == AuthChangeEvent.passwordRecovery) {
-      // यहां कोई navigation नहीं
+    final AuthChangeEvent event = data.event;
+    if (event == AuthChangeEvent.passwordRecovery) {
+      // When the app opens via the email link, Supabase triggers this event.
+      // We then send the user to the ResetPasswordScreen.
+      Get.to(() => const ResetPasswordScreen());
     }
   });
 }
@@ -56,8 +65,6 @@ class MyApp extends StatelessWidget {
     final ThemeController themeController = Get.find<ThemeController>();
 
     return GetMaterialApp(
-      // ✅ FIX: navigatorKey हटा दिया - GetX को अपना key manage करने दें
-      // navigatorKey: globalNavigatorKey,  // ❌ REMOVED
 
       debugShowCheckedModeBanner: false,
       title: 'AI Smart Wardrobe',
@@ -66,17 +73,18 @@ class MyApp extends StatelessWidget {
       darkTheme: AppThemes.darkTheme,
       themeMode: themeController.theme,
 
-      // ✅ Splash Screen से शुरुआत
+      // ✅ Splash Screen
       initialRoute: "/splash",
-
-      // ✅ FIX: सभी routes को getPages में convert करें
+      
       getPages: [
         GetPage(name: '/splash', page: () => const SplashScreen()),
         GetPage(name: '/onboarding', page: () => const OnboardingScreen()),
         GetPage(name: '/login', page: () => const LoginScreen()),
         GetPage(name: '/signup', page: () => const SignUpScreen()),
         GetPage(name: '/home', page: () => const HomeScreen()),
+        GetPage(name: '/body-scan', page: () => const BodyScanScreen()),
         GetPage(name: '/password-reset', page: () => const PasswordResetScreen()),
+
       ],
     );
   }

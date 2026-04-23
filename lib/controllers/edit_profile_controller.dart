@@ -8,6 +8,21 @@ class EditProfileController extends GetxController {
   // Observables for Skin Tone
   var selectedSkinTone = Rxn<Color>();
   var selectedSkinName = "".obs;
+  var firstName = ''.obs;
+  var lastName  = ''.obs;
+  var gender    = ''.obs;
+
+  // Observable for Body Type (NEW)
+  var bodyType = "".obs;
+
+  final List<String> bodyTypes = [
+    'Pear',
+    'Apple',
+    'Rectangle',
+    'Inverted Triangle',
+    'Hourglass',
+    'Unknown'
+  ];
 
   // Controllers for Body Measurements
   final shoulderController = TextEditingController();
@@ -42,7 +57,10 @@ class EditProfileController extends GetxController {
       selectedSkinTone.value = matchingTone['color'];
     }
 
-    // 2. Load Body Measurements into TextFields
+    // 2. Load Body Type (NEW)
+    bodyType.value = box.read('body_type') ?? '';
+
+    // 3. Load Body Measurements into TextFields
     shoulderController.text = box.read('shoulder') ?? "";
     waistController.text = box.read('waist') ?? "";
     hipController.text = box.read('hip') ?? "";
@@ -60,6 +78,7 @@ class EditProfileController extends GetxController {
     box.write('shoulder', shoulderController.text);
     box.write('waist', waistController.text);
     box.write('hip', hipController.text);
+    box.write('body_type', bodyType.value);
 
     Get.snackbar(
       'Success',
