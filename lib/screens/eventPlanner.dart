@@ -1,18 +1,16 @@
-// event_planner_screen.dart (updated _ModernTimelineCard)
-// Sirf _ModernTimelineCard aur _EventOutfitBottomSheet replace/add karo.
-// Baaki code same rehta hai.
 
-import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 
 import '../controllers/event_controller.dart';
 import '../models/event_model.dart';
 import '../services/event_outfit_service.dart'; // 🆕
 import '../utils/constants/colors.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'addEvent.dart';
+import 'OutfitSuggestion.dart';
 
 class EventPlannerScreen extends StatefulWidget {
   const EventPlannerScreen({super.key});
@@ -28,6 +26,12 @@ class _EventPlannerScreenState extends State<EventPlannerScreen> {
   Color get _scaffoldColor => Theme.of(context).scaffoldBackgroundColor;
 
   @override
+  void initState() {
+    super.initState();
+    eventController.removeExpiredEvents();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
@@ -35,14 +39,8 @@ class _EventPlannerScreenState extends State<EventPlannerScreen> {
       backgroundColor: _scaffoldColor,
       extendBody: true,
       appBar: AppBar(
-        backgroundColor: _scaffoldColor.withValues(alpha: 0.8),
+        backgroundColor: _scaffoldColor,
         elevation: 0,
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(color: Colors.transparent),
-          ),
-        ),
         title: Text(
           'UPCOMING EVENTS',
           style: TextStyle(
@@ -128,7 +126,7 @@ class _EventPlannerScreenState extends State<EventPlannerScreen> {
   }
 }
 
-// ─── Timeline Card (Updated) ─────────────────────────────────────────────────
+
 class _ModernTimelineCard extends StatelessWidget {
   final Event event;
   final bool isLast;
@@ -137,7 +135,7 @@ class _ModernTimelineCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    //final size = MediaQuery.of(context).size;
     final primaryColor = Theme.of(context).textTheme.bodyLarge!.color!;
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final service = EventOutfitService();
@@ -302,7 +300,7 @@ class _ModernTimelineCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // 🆕 Suggest Outfit Button
+
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
@@ -333,40 +331,61 @@ class _ModernTimelineCard extends StatelessWidget {
     );
   }
 
-  // ─── Outfit Suggestions Bottom Sheet ──────────────────────────────────────
-  void _showOutfitSuggestions(BuildContext context) {
-    final box = GetStorage();
 
-    // Wardrobe GetStorage se lo (aapka existing wardrobe key yahan use karo)
-    // Adjust 'wardrobe_items' key to match your actual storage key
-    final List<dynamic> raw = box.read('wardrobe_items') ?? [];
-    final List<Map<String, dynamic>> wardrobe =
-    raw.map((e) => Map<String, dynamic>.from(e)).toList();
-
-    if (wardrobe.isEmpty) {
-      Get.snackbar(
-        'Wardrobe Empty',
-        'Please add clothes to your wardrobe first!',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withValues(alpha: 0.8),
-        colorText: Colors.white,
-      );
-      return;
-    }
-
-    final service = EventOutfitService();
-    final outfits = service.generateOutfitsForEvent(
-      event: event,
-      wardrobeItems: wardrobe,
-      count: 3,
-    );
-
-    showModalBottomSheet(
+  void _showOutfitSuggestions(BuildContext context) async {
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _EventOutfitBottomSheet(event: event, outfits: outfits),
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator(color: AppColors.accentTeal)),
     );
+
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser?.id;
+
+      if (userId == null) {
+        Get.back();
+        Get.snackbar('Error', 'Please log in first.');
+        return;
+      }
+
+      final response = await supabase
+          .from('wardrobe_items')
+          .select('*')
+          .eq('user_id', userId);
+
+      final List<Map<String, dynamic>> wardrobe = List<Map<String, dynamic>>.from(response);
+
+      Get.back();
+
+      if (wardrobe.isEmpty) {
+        Get.snackbar(
+          'Wardrobe Empty',
+          'Please add clothes to your wardrobe first!',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red.withValues(alpha: 0.8),
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      final service = EventOutfitService();
+      final outfits = service.generateOutfitsForEvent(
+        event: event,
+        wardrobeItems: wardrobe,
+        count: 3,
+      );
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _EventOutfitBottomSheet(event: event, outfits: outfits),
+      );
+    } catch (e) {
+      Get.back();
+      Get.snackbar('Error', 'Failed to fetch wardrobe items.');
+    }
   }
 
   Widget _infoBadge(BuildContext context, IconData icon, String text) {
@@ -400,7 +419,7 @@ class _ModernTimelineCard extends StatelessWidget {
       textConfirm: "Delete",
       confirmTextColor: Colors.white,
       onConfirm: () {
-        controller.events.remove(event);
+        controller.deleteEventByObject(event);
         Get.back();
       },
     );
@@ -440,7 +459,7 @@ class _ModernTimelineCard extends StatelessWidget {
   }
 }
 
-// ─── Outfit Suggestions Bottom Sheet ────────────────────────────────────────
+
 class _EventOutfitBottomSheet extends StatelessWidget {
   final Event event;
   final List<Map<String, dynamic>> outfits;
@@ -562,7 +581,7 @@ class _EventOutfitBottomSheet extends StatelessWidget {
   }
 }
 
-// ─── Single Outfit Card ───────────────────────────────────────────────────────
+
 class _OutfitSuggestionCard extends StatelessWidget {
   final Map<String, dynamic> outfit;
   final int rank;
@@ -570,23 +589,36 @@ class _OutfitSuggestionCard extends StatelessWidget {
   const _OutfitSuggestionCard({required this.outfit, required this.rank});
 
   @override
-  Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).textTheme.bodyLarge!.color!;
-    final top = outfit['top'] as Map<String, dynamic>;
-    final bottom = outfit['bottom'] as Map<String, dynamic>;
-    final score = outfit['score'] as int;
-    final season = outfit['season'] as String? ?? '';
-    final subType = outfit['sub_type'] as String? ?? '';
+  @override
+Widget build(BuildContext context) {
+  final primaryColor = Theme.of(context).textTheme.bodyLarge!.color!;
 
-    String seasonEmoji = switch (season) {
-      'Hot'  => '☀️',
-      'Warm' => '🌤️',
-      'Cool' => '🍂',
-      'Cold' => '❄️',
-      _      => '🌡️',
-    };
+  final top = outfit['top'] as Map<String, dynamic>;
+  final bottom = outfit['bottom'] as Map<String, dynamic>?;
+  final footwear = outfit['footwear'] as Map<String, dynamic>?;
 
-    return Container(
+  final score = outfit['score'] as int;
+  final season = outfit['season'] as String? ?? '';
+  final subType = outfit['sub_type'] as String? ?? '';
+
+  String seasonEmoji = switch (season) {
+    'Hot' => '☀️',
+    'Warm' => '🌤️',
+    'Cool' => '🍂',
+    'Cold' => '❄️',
+    _ => '🌡️',
+  };
+
+  return GestureDetector(
+    onTap: () {
+      Get.back();
+      Get.to(
+        () => OutfitSuggestionScreen(
+          initialOutfitData: outfit,
+        ),
+      );
+    },
+    child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: rank == 1
@@ -602,73 +634,117 @@ class _OutfitSuggestionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Rank + Score
+
+          /// Rank + Score
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
                   if (rank == 1)
-                    const Text('👑 ', style: TextStyle(fontSize: 16)),
+                    const Text(
+                      '👑 ',
+                      style: TextStyle(fontSize: 16),
+                    ),
+
                   Text(
-                    rank == 1 ? 'TOP PICK' : 'OPTION $rank',
+                    rank == 1
+                        ? 'TOP PICK'
+                        : 'OPTION $rank',
                     style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.5,
-                        color: rank == 1
-                            ? AppColors.accentTeal
-                            : primaryColor.withValues(alpha: 0.4)),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
+                      color: rank == 1
+                          ? AppColors.accentTeal
+                          : primaryColor.withValues(alpha: 0.4),
+                    ),
                   ),
                 ],
               ),
+
               Row(
                 children: [
-                  Text('$seasonEmoji ',
-                      style: const TextStyle(fontSize: 12)),
+                  Text(
+                    '$seasonEmoji ',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.accentTeal.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text('Score: $score',
-                        style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.accentTeal)),
+                    child: Text(
+                      'Score: $score',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.accentTeal,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ],
           ),
+
           const SizedBox(height: 14),
 
-          // Top item
+          /// Top / Dress
           _itemRow(
             context: context,
             icon: Icons.checkroom_rounded,
-            label: 'TOP',
-            name: top['item_name'] ?? 'Top',
+            label: outfit['is_dress'] == true
+                ? 'DRESS'
+                : 'TOP',
+            name: top['item_name'] ??
+                (outfit['is_dress'] == true
+                    ? 'Dress'
+                    : 'Top'),
             color: top['color'] ?? '',
             extra: top['style'] ?? '',
           ),
-          const SizedBox(height: 10),
 
-          // Bottom item
-          _itemRow(
-            context: context,
-            icon: Icons.accessibility_new_rounded,
-            label: 'BOTTOM',
-            name: bottom['item_name'] ?? 'Bottom',
-            color: bottom['color'] ?? '',
-            extra: subType.isNotEmpty && subType != 'Unknown' ? subType : (bottom['style'] ?? ''),
-          ),
+          /// Bottom
+          if (bottom != null) ...[
+            const SizedBox(height: 10),
+
+            _itemRow(
+              context: context,
+              icon: Icons.accessibility_new_rounded,
+              label: 'BOTTOM',
+              name: bottom['item_name'] ?? 'Bottom',
+              color: bottom['color'] ?? '',
+              extra: subType.isNotEmpty &&
+                      subType != 'Unknown'
+                  ? subType
+                  : (bottom['style'] ?? ''),
+            ),
+          ],
+
+          /// Footwear
+          if (footwear != null) ...[
+            const SizedBox(height: 10),
+
+            _itemRow(
+              context: context,
+              icon: Icons.snowshoeing_rounded,
+              label: 'FOOTWEAR',
+              name: footwear['item_name'] ?? 'Footwear',
+              color: footwear['color'] ?? '',
+              extra: footwear['style'] ?? '',
+            ),
+          ],
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _itemRow({
     required BuildContext context,
@@ -724,7 +800,7 @@ class _OutfitSuggestionCard extends StatelessWidget {
     );
   }
 
-  // Color string se Flutter Color banao (basic mapping)
+
   Color _parseColor(String colorStr) {
     final c = colorStr.toLowerCase();
     if (c.contains('red'))    return Colors.red;

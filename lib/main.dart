@@ -6,11 +6,8 @@ import 'package:smart_wardrobe_new/controllers/user_controller.dart';
 import 'package:smart_wardrobe_new/controllers/weather_controller.dart';
 import 'package:smart_wardrobe_new/controllers/wardrobe_controller.dart';
 import 'package:smart_wardrobe_new/screens/HomeScreen.dart';
-import 'package:smart_wardrobe_new/screens/OutfitSuggestion.dart';
 import 'package:smart_wardrobe_new/screens/ResetPasswordScreen.dart';
 import 'package:smart_wardrobe_new/screens/body_scan.dart';
-import 'package:smart_wardrobe_new/screens/my_wardrobe.dart';
-import 'package:smart_wardrobe_new/screens/profile.dart' hide LoginScreen;
 import 'package:flutter/material.dart';
 import 'package:smart_wardrobe_new/screens/splash.dart';
 import 'package:smart_wardrobe_new/screens/onboarding.dart';
@@ -33,11 +30,13 @@ Future<void> main() async {
   await Supabase.initialize(
     url: 'https://srzyhowfebtkueubwyqr.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNyenlob3dmZWJ0a3VldWJ3eXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3ODk5OTMsImV4cCI6MjA3ODM2NTk5M30.tbzSYGXo80I6nWogAOOMHq_paxTQhuBilk-irfeJWMk',
+      realtimeClientOptions: const RealtimeClientOptions(
+        eventsPerSecond: 10,
+        timeout: Duration(seconds: 30),
+      )
   );
 
-  await GetStorage.init();
-
-  final session = Supabase.instance.client.auth.currentSession;
+  //final session = Supabase.instance.client.auth.currentSession;
 
   Get.put(ThemeController());
   Get.put(UserController());
